@@ -133,24 +133,6 @@ test('uses right of the caret at offset `0` within document', () => {
   );
 });
 
-test('uses previous block at offset `0` within empty block', () => {
-  assertGetCurrentInlineStyle(
-    collapsedSelection.merge({
-      anchorKey: 'emptyA',
-      focusKey: 'emptyA',
-    }),
-  );
-});
-
-test('looks upward through empty blocks to find a character with collapsed selection', () => {
-  assertGetCurrentInlineStyle(
-    collapsedSelection.merge({
-      anchorKey: 'emptyB',
-      focusKey: 'emptyB',
-    }),
-  );
-});
-
 test('does not discard style override when changing block type', () => {
   let editor = EditorState.createEmpty();
 
@@ -192,17 +174,6 @@ test('uses left of the start if starting at end of block', () => {
     collapsedSelection.merge({
       anchorKey: 'b',
       anchorOffset: blockB.getLength(),
-      focusKey: 'c',
-      focusOffset: 3,
-    }),
-  );
-});
-
-test('looks upward through empty blocks to find a character', () => {
-  assertGetCurrentInlineStyle(
-    rangedSelection.merge({
-      anchorKey: 'emptyA',
-      anchorOffset: 0,
       focusKey: 'c',
       focusOffset: 3,
     }),
