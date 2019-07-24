@@ -1,5 +1,39 @@
 # [Draft.js](http://draftjs.org/) [![Build Status](https://img.shields.io/travis/facebook/draft-js/master.svg?style=flat)](https://travis-ci.org/facebook/draft-js) [![npm version](https://img.shields.io/npm/v/draft-js.svg?style=flat)](https://yarn.pm/draft-js)
 
+## Dooly Maintained Fork
+
+This is a fork of Draft.js maintained by Dooly. We don't recommend using this
+fork, it's a hacked up version suited to our needs and most likely not yours.
+
+This fork has the following changes:
+
+- **Scrolling improvements when inserting blocks:** Draft.js scrolls its
+container when a block is inserted at the end of the editor that falls outside
+of the visible viewport. This improves the scrolling behaviour for when the
+editor is inside of a scrollable container. An optional element with the
+`[data-draft-footer]` selector is kept in view when the container is scrolled.
+
+- **Maintain original block type when updating a single fragment:** When
+updating a single fragment (e.g, pasting a single element,) the original block
+type is preserved.
+
+- **Use 0.10.0 pasting logic:** 0.11.0's pasting code seems to have issues with
+adding random newlines and not converting nested lists properly. This backports
+the 0.10.0 logic until 0.11's behaviour is fixed. Try pasting the following
+markdown into 0.10.0 vs 0.11.0's editor to see this,
+
+Hi there,
+
+- this
+- is
+  - a
+  - nested
+- list
+
+## Original README
+
+![Live Demo](https://media.giphy.com/media/XHUjaxELpc11SiRSqN/giphy.gif)
+
 Draft.js is a JavaScript rich text editor framework, built for React and
 backed by an immutable model.
 
@@ -15,7 +49,7 @@ with [immutable-js](https://facebook.github.io/immutable-js/), offering
 an API with functional state updates and aggressively leveraging data persistence
 for scalable memory usage.
 
-[Learn how to use Draft.js in your own project.](http://draftjs.org/docs/overview.html)
+[Learn how to use Draft.js in your own project.](https://draftjs.org/docs/getting-started.html)
 
 ## API Notice
 
@@ -49,19 +83,83 @@ class MyEditor extends React.Component {
     super(props);
     this.state = {editorState: EditorState.createEmpty()};
     this.onChange = (editorState) => this.setState({editorState});
+    this.setEditor = (editor) => {
+      this.editor = editor;
+    };
+    this.focusEditor = () => {
+      if (this.editor) {
+        this.editor.focus();
+      }
+    };
   }
+
+  componentDidMount() {
+    this.focusEditor();
+  }
+
   render() {
     return (
-      <Editor editorState={this.state.editorState} onChange={this.onChange} />
+      <div style={styles.editor} onClick={this.focusEditor}>
+        <Editor
+          ref={this.setEditor}
+          editorState={this.state.editorState}
+          onChange={this.onChange}
+        />
+      </div>
     );
   }
 }
+
+const styles = {
+  editor: {
+    border: '1px solid gray',
+    minHeight: '6em'
+  }
+};
 
 ReactDOM.render(
   <MyEditor />,
   document.getElementById('container')
 );
 ```
+
+Since the release of React 16.8, you can use [Hooks](https://reactjs.org/docs/hooks-intro.html) as a way to work with `EditorState` without using a class.
+
+
+```js
+import React from 'react';
+import ReactDOM from 'react-dom';
+import {Editor, EditorState} from 'draft-js';
+
+function MyEditor() {
+  const [editorState, setEditorState] = React.useState(
+    EditorState.createEmpty()
+  );
+
+  const editor = React.useRef(null);
+
+  function focusEditor() {
+    editor.current.focus();
+  }
+
+  React.useEffect(() => {
+    focusEditor()
+  }, []);
+
+  return (
+    <div onClick={focusEditor}>
+      <Editor
+        ref={editor}
+        editorState={editorState}
+        onChange={editorState => setEditorState(editorState)}
+      />
+    </div>
+  );
+}
+
+```
+
+Note that the editor itself is only as tall as its contents. In order to give users a visual cue, we recommend setting a border and a minimum height via the `.DraftEditor-root` CSS selector, or using a wrapper div like in the above example.
 
 Because Draft.js supports unicode, you must have the following meta tag in the `<head>` `</head>` block of your HTML file:
 
@@ -94,11 +192,11 @@ comment inputs, [Notes](https://www.facebook.com/notes/), and
 
 ## Browser Support
 
-| ![IE / Edge](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/edge.png) <br /> IE / Edge | ![Firefox](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/firefox.png) <br /> Firefox | ![Chrome](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome.png) <br /> Chrome | ![Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari.png ) <br /> Safari | ![iOS Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari-ios.png) <br />iOS Safari | ![Chrome for Anroid](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome-android.png) <br/> Chrome for Android |
+| ![IE / Edge](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/edge.png) <br /> IE / Edge | ![Firefox](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/firefox.png) <br /> Firefox | ![Chrome](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome.png) <br /> Chrome | ![Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari.png ) <br /> Safari | ![iOS Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari-ios.png) <br />iOS Safari | ![Chrome for Android](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome-android.png) <br/> Chrome for Android |
 | --------- | --------- | --------- | --------- | --------- | --------- |
 | IE11, Edge [1, 2]| last 2 versions| last 2 versions| last 2 versions| not fully supported [3] | not fully supported [3]
 
-[1] May need a shim or a polyfill for some syntax used in Draft.js ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#polyfills)). 
+[1] May need a shim or a polyfill for some syntax used in Draft.js ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#polyfills)).
 
 [2] IME inputs have known issues in these browsers, especially Korean ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#ime-and-internet-explorer)).
 
@@ -119,8 +217,7 @@ We actively welcome pull requests. Learn how to
 
 ## License
 
-Draft.js is [BSD Licensed](https://github.com/facebook/draft-js/blob/master/LICENSE).
-We also provide an additional [patent grant](https://github.com/facebook/draft-js/blob/master/PATENTS).
+Draft.js is [MIT licensed](https://github.com/facebook/draft-js/blob/master/LICENSE).
 
 Examples provided in this repository and in the documentation are separately
 licensed.
