@@ -7,17 +7,17 @@ fork, it's a hacked up version suited to our needs and most likely not yours.
 
 This fork has the following changes:
 
-- *Scrolling improvements when inserting blocks:* Draft.js scrolls its container
-when a block is inserted at the end of the editor that falls outside of the
-visible viewport. This improves the scrolling behaviour for when the editor is
-inside of a scrollable container. An optional element with the
+- **Scrolling improvements when inserting blocks:** Draft.js scrolls its
+container when a block is inserted at the end of the editor that falls outside
+of the visible viewport. This improves the scrolling behaviour for when the
+editor is inside of a scrollable container. An optional element with the
 `[data-draft-footer]` selector is kept in view when the container is scrolled.
 
-- *Maintain original block type when updating a single fragment:* When updating
-a single fragment (e.g, pasting a single element,) the original block type is
-preserved.
+- **Maintain original block type when updating a single fragment:** When
+updating a single fragment (e.g, pasting a single element,) the original block
+type is preserved.
 
-- *Use 0.10.0 pasting logic:* 0.11.0's pasting code seems to have issues with
+- **Use 0.10.0 pasting logic:** 0.11.0's pasting code seems to have issues with
 adding random newlines and not converting nested lists properly. This backports
 the 0.10.0 logic until 0.11's behaviour is fixed. Try pasting the following
 markdown into 0.10.0 vs 0.11.0's editor to see this,
