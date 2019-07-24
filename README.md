@@ -1,6 +1,6 @@
 # [Draft.js](http://draftjs.org/) [![Build Status](https://img.shields.io/travis/facebook/draft-js/master.svg?style=flat)](https://travis-ci.org/facebook/draft-js) [![npm version](https://img.shields.io/npm/v/draft-js.svg?style=flat)](https://yarn.pm/draft-js)
 
-## Dooly maintained fork
+## Dooly Maintained Fork
 
 This is a fork of Draft.js maintained by Dooly. We don't recommend using this
 fork, it's a hacked up version suited to our needs and most likely not yours.
