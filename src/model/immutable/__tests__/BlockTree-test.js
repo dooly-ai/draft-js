@@ -96,6 +96,7 @@ const assertBlockTreeGenerate = (
   const tree = BlockTree.generate(content, block, decorator);
 
   expect(tree.toJS()).toMatchSnapshot();
+  expect(BlockTree.getFingerprint(tree)).toMatchSnapshot();
 
   // to remove
   return tree;

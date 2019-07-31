@@ -11,6 +11,7 @@
 'use strict';
 
 jest.disableAutomock();
+jest.mock('gkx', () => name => name === 'draft_improved_decorator_fingerprint');
 
 const CompositeDraftDecorator = require('CompositeDraftDecorator');
 const ContentBlock = require('ContentBlock');
