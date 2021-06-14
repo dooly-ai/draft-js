@@ -12,10 +12,13 @@
 'use strict';
 
 import type {BlockMap} from 'BlockMap';
+import type {BlockNodeRawConfig} from 'BlockNode';
 import type {BlockNodeRecord} from 'BlockNodeRecord';
+import type {ContentStateRawType} from 'ContentStateRawType';
 import type DraftEntityInstance from 'DraftEntityInstance';
 import type {DraftEntityMutability} from 'DraftEntityMutability';
 import type {DraftEntityType} from 'DraftEntityType';
+import type {Map} from 'immutable';
 
 const BlockMapBuilder = require('BlockMapBuilder');
 const CharacterMetadata = require('CharacterMetadata');
@@ -25,18 +28,22 @@ const DraftEntity = require('DraftEntity');
 const SelectionState = require('SelectionState');
 
 const generateRandomKey = require('generateRandomKey');
+const getOwnObjectValues = require('getOwnObjectValues');
 const gkx = require('gkx');
 const Immutable = require('immutable');
 const sanitizeDraftText = require('sanitizeDraftText');
 
-const {List, Record, Repeat} = Immutable;
+const {List, Record, Repeat, Map: ImmutableMap, OrderedMap} = Immutable;
 
-const defaultRecord: {
+type ContentStateRecordType = {
   entityMap: ?any,
   blockMap: ?BlockMap,
   selectionBefore: ?SelectionState,
   selectionAfter: ?SelectionState,
-} = {
+  ...
+};
+
+const defaultRecord: ContentStateRecordType = {
   entityMap: null,
   blockMap: null,
   selectionBefore: null,
@@ -44,6 +51,13 @@ const defaultRecord: {
 };
 
 const ContentStateRecord = (Record(defaultRecord): any);
+
+/* $FlowFixMe[signature-verification-failure] Supressing a `signature-
+ * verification-failure` error here. TODO: T65949050 Clean up the branch for
+ * this GK */
+const ContentBlockNodeRecord = gkx('draft_tree_data_support')
+  ? ContentBlockNode
+  : ContentBlock;
 
 class ContentState extends ContentStateRecord {
   getEntityMap(): any {
@@ -127,7 +141,11 @@ class ContentState extends ContentStateRecord {
 
   hasText(): boolean {
     const blockMap = this.getBlockMap();
-    return blockMap.size > 1 || blockMap.first().getLength() > 0;
+    return (
+      blockMap.size > 1 ||
+      // make sure that there are no zero width space chars
+      escape(blockMap.first().getText()).replace(/%u200B/g, '').length > 0
+    );
   }
 
   createEntity(
@@ -140,13 +158,19 @@ class ContentState extends ContentStateRecord {
     return this;
   }
 
-  mergeEntityData(key: string, toMerge: {[key: string]: any}): ContentState {
+  mergeEntityData(
+    key: string,
+    toMerge: {[key: string]: any, ...},
+  ): ContentState {
     // TODO: update this when we fully remove DraftEntity
     DraftEntity.__mergeData(key, toMerge);
     return this;
   }
 
-  replaceEntityData(key: string, newData: {[key: string]: any}): ContentState {
+  replaceEntityData(
+    key: string,
+    newData: {[key: string]: any, ...},
+  ): ContentState {
     // TODO: update this when we fully remove DraftEntity
     DraftEntity.__replaceData(key, newData);
     return this;
@@ -163,9 +187,19 @@ class ContentState extends ContentStateRecord {
     return DraftEntity.__get(key);
   }
 
+  getAllEntities(): Map<string, DraftEntityInstance> {
+    return DraftEntity.__getAll();
+  }
+
+  loadWithEntities(entities: Map<string, DraftEntityInstance>): void {
+    return DraftEntity.__loadWithEntities(entities);
+  }
+
   static createFromBlockArray(
     // TODO: update flow type when we completely deprecate the old entity API
-    blocks: Array<BlockNodeRecord> | {contentBlocks: Array<BlockNodeRecord>},
+    blocks:
+      | Array<BlockNodeRecord>
+      | {contentBlocks: Array<BlockNodeRecord>, ...},
     entityMap: ?any,
   ): ContentState {
     // TODO: remove this when we completely deprecate the old entity API
@@ -189,9 +223,6 @@ class ContentState extends ContentStateRecord {
     const strings = text.split(delimiter);
     const blocks = strings.map(block => {
       block = sanitizeDraftText(block);
-      const ContentBlockNodeRecord = gkx('draft_tree_data_support')
-        ? ContentBlockNode
-        : ContentBlock;
       return new ContentBlockNodeRecord({
         key: generateRandomKey(),
         text: block,
@@ -200,6 +231,37 @@ class ContentState extends ContentStateRecord {
       });
     });
     return ContentState.createFromBlockArray(blocks);
+  }
+
+  static fromJS(state: ContentStateRawType): ContentState {
+    return new ContentState({
+      ...state,
+      blockMap: OrderedMap(state.blockMap).map(
+        ContentState.createContentBlockFromJS,
+      ),
+      selectionBefore: new SelectionState(state.selectionBefore),
+      selectionAfter: new SelectionState(state.selectionAfter),
+    });
+  }
+
+  static createContentBlockFromJS(
+    block: BlockNodeRawConfig,
+  ): ContentBlockNodeRecord {
+    const characterList = block.characterList;
+
+    return new ContentBlockNodeRecord({
+      ...block,
+      data: ImmutableMap(block.data),
+      characterList:
+        characterList != null
+          ? List(
+              (Array.isArray(characterList)
+                ? characterList
+                : getOwnObjectValues(characterList)
+              ).map(c => CharacterMetadata.fromJS(c)),
+            )
+          : undefined,
+    });
   }
 }
 

@@ -30,8 +30,6 @@ const DraftOffsetKey = require("./DraftOffsetKey");
 
 const React = require("react");
 
-const ReactDOM = require("react-dom");
-
 const Scroll = require("fbjs/lib/Scroll");
 
 const Style = require("fbjs/lib/Style");
@@ -45,6 +43,8 @@ const getViewportDimensions = require("fbjs/lib/getViewportDimensions");
 const Immutable = require("immutable");
 
 const invariant = require("fbjs/lib/invariant");
+
+const isHTMLElement = require("./isHTMLElement");
 
 const SCROLL_BUFFER = 10;
 const {
@@ -72,6 +72,7 @@ type Props = {
   selection: SelectionState,
   startIndent?: boolean,
   tree: List<any>,
+  ...
 };
 /**
  * Return whether a block overlaps with either edge of the `SelectionState`.
@@ -93,7 +94,7 @@ const shouldNotAddWrapperElement = (block: BlockNodeRecord, contentState: Conten
 };
 
 const applyWrapperElementToSiblings = (wrapperTemplate: *, Element: string, nodes: Array<React.Node>): Array<React.Node> => {
-  const wrappedSiblings = []; // we check back until we find a sibbling that does not have same wrapper
+  const wrappedSiblings = []; // we check back until we find a sibling that does not have same wrapper
 
   for (const sibling: any of nodes.reverse()) {
     if (sibling.type !== Element) {
@@ -143,12 +144,15 @@ const getCustomRenderConfig = (block: BlockNodeRecord, blockRendererFn: BlockRen
   };
 };
 
-const getElementPropsConfig = (block: BlockNodeRecord, editorKey: string, offsetKey: string, blockStyleFn: BlockStyleFn, customConfig: *): Object => {
+const getElementPropsConfig = (block: BlockNodeRecord, editorKey: string, offsetKey: string, blockStyleFn: BlockStyleFn, customConfig: *, ref: null | {|
+  current: null | Element
+|}): Object => {
   let elementProps: Object = {
     'data-block': true,
     'data-editor': editorKey,
     'data-offset-key': offsetKey,
-    key: block.getKey()
+    key: block.getKey(),
+    ref
   };
   const customClass = blockStyleFn(block);
 
@@ -167,6 +171,10 @@ const getElementPropsConfig = (block: BlockNodeRecord, editorKey: string, offset
 };
 
 class DraftEditorBlockNode extends React.Component<Props> {
+  wrapperRef: {|
+    current: null | Element
+  |} = React.createRef<Element>();
+
   shouldComponentUpdate(nextProps: Props): boolean {
     const {
       block,
@@ -201,7 +209,13 @@ class DraftEditorBlockNode extends React.Component<Props> {
       return;
     }
 
-    const blockNode = ReactDOM.findDOMNode(this);
+    const blockNode = this.wrapperRef.current;
+
+    if (!blockNode) {
+      // This Block Node was rendered without a wrapper element.
+      return;
+    }
+
     const scrollParent = Style.getScrollParent(blockNode);
     const scrollPosition = getScrollPosition(scrollParent);
     let scrollDelta;
@@ -216,8 +230,9 @@ class DraftEditorBlockNode extends React.Component<Props> {
         window.scrollTo(scrollPosition.x, scrollPosition.y + scrollDelta + SCROLL_BUFFER);
       }
     } else {
-      invariant(blockNode instanceof HTMLElement, 'blockNode is not an HTMLElement');
-      const blockBottom = blockNode.offsetHeight + blockNode.offsetTop;
+      invariant(isHTMLElement(blockNode), 'blockNode is not an HTMLElement');
+      const htmlBlockNode: HTMLElement = (blockNode: any);
+      const blockBottom = htmlBlockNode.offsetHeight + htmlBlockNode.offsetTop;
       const scrollBottom = scrollParent.offsetHeight + scrollPosition.y;
       scrollDelta = blockBottom - scrollBottom;
 
@@ -256,7 +271,7 @@ class DraftEditorBlockNode extends React.Component<Props> {
           Element,
           wrapperTemplate
         } = getDraftRenderConfig(child, blockRenderMap);
-        const elementProps = getElementPropsConfig(child, editorKey, offsetKey, blockStyleFn, customConfig);
+        const elementProps = getElementPropsConfig(child, editorKey, offsetKey, blockStyleFn, customConfig, null);
         const childProps = { ...this.props,
           tree: editorState.getBlockTree(key),
           blockProps: customConfig.customProps,
@@ -290,7 +305,7 @@ class DraftEditorBlockNode extends React.Component<Props> {
     const {
       Element
     } = getDraftRenderConfig(block, blockRenderMap);
-    const elementProps = getElementPropsConfig(block, editorKey, offsetKey, blockStyleFn, customConfig); // root block nodes needs to be wrapped
+    const elementProps = getElementPropsConfig(block, editorKey, offsetKey, blockStyleFn, customConfig, this.wrapperRef); // root block nodes needs to be wrapped
 
     return React.createElement(Element, elementProps, blockNode);
   }

@@ -12,12 +12,11 @@
 
 'use strict';
 
-jest.disableAutomock();
-
 jest.mock('generateRandomKey');
 
 const DraftPasteProcessor = require('DraftPasteProcessor');
 const Immutable = require('immutable');
+const mockUUID = require('mockUUID');
 
 const {OrderedSet, Map} = Immutable;
 
@@ -84,6 +83,7 @@ const assertDraftPasteProcessorProcessHTML = (
 
 beforeEach(() => {
   jest.resetModules();
+  jest.mock('uuid', () => mockUUID);
 });
 
 test('must identify italics text', () => {

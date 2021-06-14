@@ -5,12 +5,13 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @format
- * @flow
+ * @flow strict-local
  * @emails oncall+draft_js
  */
 
 'use strict';
 
+import type {SelectionObject} from 'DraftDOMTypes';
 import type DraftEditor from 'DraftEditor.react';
 
 const EditorState = require('EditorState');
@@ -18,7 +19,7 @@ const EditorState = require('EditorState');
 const containsNode = require('containsNode');
 const getActiveElement = require('getActiveElement');
 
-function editOnBlur(editor: DraftEditor, e: SyntheticEvent<>): void {
+function editOnBlur(editor: DraftEditor, e: SyntheticEvent<HTMLElement>): void {
   // In a contentEditable element, when you select a range and then click
   // another active element, this does trigger a `blur` event but will not
   // remove the DOM selection from the contenteditable.
@@ -27,8 +28,14 @@ function editOnBlur(editor: DraftEditor, e: SyntheticEvent<>): void {
   // We therefore force the issue to be certain, checking whether the active
   // element is `body` to force it when blurring occurs within the window (as
   // opposed to clicking to another tab or window).
-  if (getActiveElement() === document.body) {
-    const selection = global.getSelection();
+  const {ownerDocument} = e.currentTarget;
+  if (
+    // This ESLint rule conflicts with `sketchy-null-bool` flow check
+    // eslint-disable-next-line no-extra-boolean-cast
+    !Boolean(editor.props.preserveSelectionOnBlur) &&
+    getActiveElement(ownerDocument) === ownerDocument.body
+  ) {
+    const selection: SelectionObject = ownerDocument.defaultView.getSelection();
     const editorNode = editor.editor;
     if (
       selection.rangeCount === 1 &&

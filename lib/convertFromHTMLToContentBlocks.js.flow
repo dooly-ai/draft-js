@@ -41,6 +41,14 @@ const {
   OrderedSet
 } = require("immutable");
 
+const isHTMLAnchorElement = require("./isHTMLAnchorElement");
+
+const isHTMLBRElement = require("./isHTMLBRElement");
+
+const isHTMLElement = require("./isHTMLElement");
+
+const isHTMLImageElement = require("./isHTMLImageElement");
+
 const experimentalTreeDataSupport = gkx('draft_tree_data_support');
 const NBSP = '&nbsp;';
 const SPACE = ' '; // used for replacing characters in HTML
@@ -53,7 +61,7 @@ const REGEX_CARRIAGE = new RegExp('&#13;?', 'g');
 const REGEX_ZWS = new RegExp('&#8203;?', 'g'); // https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight
 
 const boldValues = ['bold', 'bolder', '500', '600', '700', '800', '900'];
-const notBoldValues = ['light', 'lighter', '100', '200', '300', '400'];
+const notBoldValues = ['light', 'lighter', 'normal', '100', '200', '300', '400'];
 const anchorAttr = ['className', 'href', 'rel', 'target', 'title'];
 const imgAttr = ['alt', 'className', 'height', 'src', 'width'];
 const knownListItemDepthClasses = {
@@ -118,6 +126,18 @@ const buildBlockTypeMap = (blockRenderMap: DraftBlockRenderMap): BlockTypeMap =>
   });
   return Map(blockTypeMap);
 };
+
+const detectInlineStyle = (node: Node): string | null => {
+  if (isHTMLElement(node)) {
+    const element: HTMLElement = (node: any); // Currently only used to detect preformatted inline code
+
+    if (element.style.fontFamily.includes('monospace')) {
+      return 'CODE';
+    }
+  }
+
+  return null;
+};
 /**
  * If we're pasting from one DraftEditor to another we can check to see if
  * existing list item depth classes are being used and preserve this style
@@ -139,7 +159,26 @@ const getListItemDepth = (node: HTMLElement, depth: number = 0): number => {
 
 
 const isValidAnchor = (node: Node) => {
-  return !!(node instanceof HTMLAnchorElement && node.href && (node.protocol === 'http:' || node.protocol === 'https:' || node.protocol === 'mailto:'));
+  if (!isHTMLAnchorElement(node)) {
+    return false;
+  }
+
+  const anchorNode: HTMLAnchorElement = (node: any);
+
+  if (!anchorNode.href || anchorNode.protocol !== 'http:' && anchorNode.protocol !== 'https:' && anchorNode.protocol !== 'mailto:' && anchorNode.protocol !== 'tel:') {
+    return false;
+  }
+
+  try {
+    // Just checking whether we can actually create a URI
+    const _ = new URI(anchorNode.href);
+
+    return true; // We need our catch statements to have arguments, else
+    // UglifyJS (which we use for our OSS builds) will crash.
+    // eslint-disable-next-line fb-www/no-unused-catch-bindings
+  } catch (_) {
+    return false;
+  }
 };
 /**
  * Return true if the provided HTML Element can be used to build a
@@ -148,7 +187,12 @@ const isValidAnchor = (node: Node) => {
 
 
 const isValidImage = (node: Node): boolean => {
-  return !!(node instanceof HTMLImageElement && node.attributes.getNamedItem('src') && node.attributes.getNamedItem('src').value);
+  if (!isHTMLImageElement(node)) {
+    return false;
+  }
+
+  const imageNode: HTMLImageElement = (node: any);
+  return !!(imageNode.attributes.getNamedItem('src') && imageNode.attributes.getNamedItem('src').value);
 };
 /**
  * Try to guess the inline style of an HTML element based on its css
@@ -156,14 +200,12 @@ const isValidImage = (node: Node): boolean => {
  */
 
 
-const styleFromNodeAttributes = (node: Node): DraftInlineStyle => {
-  const style = OrderedSet();
-
-  if (!(node instanceof HTMLElement)) {
+const styleFromNodeAttributes = (node: Node, style: DraftInlineStyle): DraftInlineStyle => {
+  if (!isHTMLElement(node)) {
     return style;
   }
 
-  const htmlElement = node;
+  const htmlElement: HTMLElement = (node: any);
   const fontWeight = htmlElement.style.fontWeight;
   const fontStyle = htmlElement.style.fontStyle;
   const textDecoration = htmlElement.style.textDecoration;
@@ -221,6 +263,7 @@ type ContentBlockConfig = {
   prevSibling: ?string,
   nextSibling: ?string,
   childConfigs: Array<ContentBlockConfig>,
+  ...
 };
 /**
  * ContentBlocksBuilder builds a list of ContentBlocks and an Entity Map
@@ -250,7 +293,6 @@ class ContentBlocksBuilder {
   currentBlockType: string = 'unstyled';
   currentDepth: number = 0;
   currentEntity: ?string = null;
-  currentStyle: DraftInlineStyle = OrderedSet();
   currentText: string = '';
   wrapper: ?string = null; // Describes the future ContentState as a tree of content blocks
 
@@ -279,7 +321,6 @@ class ContentBlocksBuilder {
     this.currentBlockType = 'unstyled';
     this.currentDepth = 0;
     this.currentEntity = null;
-    this.currentStyle = OrderedSet();
     this.currentText = '';
     this.entityMap = DraftEntity;
     this.wrapper = null;
@@ -294,7 +335,7 @@ class ContentBlocksBuilder {
     this.contentBlocks = [];
     this.currentDepth = 0; // Converts the HTML node to block config
 
-    this.blockConfigs.push(...this._toBlockConfigs([node])); // There might be some left over text in the builder's
+    this.blockConfigs.push(...this._toBlockConfigs([node], OrderedSet())); // There might be some left over text in the builder's
     // internal state, if so make a ContentBlock out of it.
 
     this._trimCurrentText();
@@ -315,6 +356,7 @@ class ContentBlocksBuilder {
   getContentBlocks(): {
     contentBlocks: ?Array<BlockNodeRecord>,
     entityMap: EntityMap,
+    ...
   } {
     if (this.contentBlocks.length === 0) {
       if (experimentalTreeDataSupport) {
@@ -328,22 +370,6 @@ class ContentBlocksBuilder {
       contentBlocks: this.contentBlocks,
       entityMap: this.entityMap
     };
-  }
-  /**
-   * Add a new inline style to the upcoming nodes.
-   */
-
-
-  addStyle(inlineStyle: DraftInlineStyle): void {
-    this.currentStyle = this.currentStyle.union(inlineStyle);
-  }
-  /**
-   * Remove a currently applied inline style.
-   */
-
-
-  removeStyle(inlineStyle: DraftInlineStyle): void {
-    this.currentStyle = this.currentStyle.subtract(inlineStyle);
   } // ***********************************WARNING******************************
   // The methods below this line are private - don't call them directly.
 
@@ -380,7 +406,7 @@ class ContentBlocksBuilder {
    */
 
 
-  _toBlockConfigs(nodes: Array<Node>): Array<ContentBlockConfig> {
+  _toBlockConfigs(nodes: Array<Node>, style: DraftInlineStyle): Array<ContentBlockConfig> {
     const blockConfigs = [];
 
     for (let i = 0; i < nodes.length; i++) {
@@ -409,7 +435,7 @@ class ContentBlocksBuilder {
           }
         }
 
-        blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes)));
+        blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes), style));
         this.currentDepth = wasCurrentDepth;
         this.wrapper = wasWrapper;
         continue;
@@ -434,13 +460,14 @@ class ContentBlocksBuilder {
           blockType = this.disambiguate(nodeName, this.wrapper) || blockType[0] || 'unstyled';
         }
 
-        if (!experimentalTreeDataSupport && node instanceof HTMLElement && (blockType === 'unordered-list-item' || blockType === 'ordered-list-item')) {
-          this.currentDepth = getListItemDepth(node, this.currentDepth);
+        if (!experimentalTreeDataSupport && isHTMLElement(node) && (blockType === 'unordered-list-item' || blockType === 'ordered-list-item')) {
+          const htmlElement: HTMLElement = (node: any);
+          this.currentDepth = getListItemDepth(htmlElement, this.currentDepth);
         }
 
         const key = generateRandomKey();
 
-        const childConfigs = this._toBlockConfigs(Array.from(node.childNodes));
+        const childConfigs = this._toBlockConfigs(Array.from(node.childNodes), style);
 
         this._trimCurrentText();
 
@@ -455,36 +482,43 @@ class ContentBlocksBuilder {
       }
 
       if (nodeName === '#text') {
-        this._addTextNode(node);
+        this._addTextNode(node, style);
 
         continue;
       }
 
       if (nodeName === 'br') {
-        this._addBreakNode(node);
+        this._addBreakNode(node, style);
 
         continue;
       }
 
       if (isValidImage(node)) {
-        this._addImgNode(node);
+        this._addImgNode(node, style);
 
         continue;
       }
 
       if (isValidAnchor(node)) {
-        this._addAnchorNode(node, blockConfigs);
+        this._addAnchorNode(node, blockConfigs, style);
 
         continue;
       }
 
-      const inlineStyle = HTMLTagToRawInlineStyleMap.has(nodeName) ? OrderedSet.of(HTMLTagToRawInlineStyleMap.get(nodeName)) : OrderedSet();
-      const attributesStyle = styleFromNodeAttributes(node);
-      this.addStyle(inlineStyle);
-      this.addStyle(attributesStyle);
-      blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes)));
-      this.removeStyle(attributesStyle);
-      this.removeStyle(inlineStyle);
+      let newStyle = style;
+
+      if (HTMLTagToRawInlineStyleMap.has(nodeName)) {
+        newStyle = newStyle.add(HTMLTagToRawInlineStyleMap.get(nodeName));
+      }
+
+      newStyle = styleFromNodeAttributes(node, newStyle);
+      const inlineStyle = detectInlineStyle(node);
+
+      if (inlineStyle != null) {
+        newStyle = newStyle.add(inlineStyle);
+      }
+
+      blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes), newStyle));
     }
 
     return blockConfigs;
@@ -494,10 +528,10 @@ class ContentBlocksBuilder {
    */
 
 
-  _appendText(text: string) {
+  _appendText(text: string, style: DraftInlineStyle) {
     this.currentText += text;
     const characterMetadata = CharacterMetadata.create({
-      style: this.currentStyle,
+      style,
       entity: this.currentEntity
     });
     this.characterList = this.characterList.push(...Array(text.length).fill(characterMetadata));
@@ -530,7 +564,7 @@ class ContentBlocksBuilder {
    */
 
 
-  _addTextNode(node: Node) {
+  _addTextNode(node: Node, style: DraftInlineStyle) {
     let text = node.textContent;
     const trimmedText = text.trim(); // If we are not in a pre block and the trimmed content is empty,
     // normalize to a single space.
@@ -546,27 +580,27 @@ class ContentBlocksBuilder {
       text = text.replace(REGEX_LF, SPACE);
     }
 
-    this._appendText(text);
+    this._appendText(text, style);
   }
 
-  _addBreakNode(node: Node) {
-    if (!(node instanceof HTMLBRElement)) {
+  _addBreakNode(node: Node, style: DraftInlineStyle) {
+    if (!isHTMLBRElement(node)) {
       return;
     }
 
-    this._appendText('\n');
+    this._appendText('\n', style);
   }
   /**
    * Add the content of an HTML img node to the internal state
    */
 
 
-  _addImgNode(node: Node) {
-    if (!(node instanceof HTMLImageElement)) {
+  _addImgNode(node: Node, style: DraftInlineStyle) {
+    if (!isHTMLImageElement(node)) {
       return;
     }
 
-    const image: HTMLImageElement = node;
+    const image: HTMLImageElement = (node: any);
     const entityConfig = {};
     imgAttr.forEach(attr => {
       const imageAttribute = image.getAttribute(attr);
@@ -576,16 +610,16 @@ class ContentBlocksBuilder {
       }
     }); // TODO: T15530363 update this when we remove DraftEntity entirely
 
-    this.currentEntity = this.entityMap.__create('IMAGE', 'MUTABLE', entityConfig); // The child text node cannot just have a space or return as content (since
+    this.currentEntity = this.entityMap.__create('IMAGE', 'IMMUTABLE', entityConfig); // The child text node cannot just have a space or return as content (since
     // we strip those out), unless the image is for presentation only.
     // See https://github.com/facebook/draft-js/issues/231 for some context.
 
     if (gkx('draftjs_fix_paste_for_img')) {
-      if (node.getAttribute('role') !== 'presentation') {
-        this._appendText('\ud83d\udcf7');
+      if (image.getAttribute('role') !== 'presentation') {
+        this._appendText('\ud83d\udcf7', style);
       }
     } else {
-      this._appendText('\ud83d\udcf7');
+      this._appendText('\ud83d\udcf7', style);
     }
 
     this.currentEntity = null;
@@ -597,14 +631,14 @@ class ContentBlocksBuilder {
    */
 
 
-  _addAnchorNode(node: Node, blockConfigs: Array<ContentBlockConfig>) {
+  _addAnchorNode(node: Node, blockConfigs: Array<ContentBlockConfig>, style: DraftInlineStyle) {
     // The check has already been made by isValidAnchor but
     // we have to do it again to keep flow happy.
-    if (!(node instanceof HTMLAnchorElement)) {
+    if (!isHTMLAnchorElement(node)) {
       return;
     }
 
-    const anchor: HTMLAnchorElement = node;
+    const anchor: HTMLAnchorElement = (node: any);
     const entityConfig = {};
     anchorAttr.forEach(attr => {
       const anchorAttribute = anchor.getAttribute(attr);
@@ -616,7 +650,7 @@ class ContentBlocksBuilder {
     entityConfig.url = new URI(anchor.href).toString(); // TODO: T15530363 update this when we remove DraftEntity completely
 
     this.currentEntity = this.entityMap.__create('LINK', 'MUTABLE', entityConfig || {});
-    blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes)));
+    blockConfigs.push(...this._toBlockConfigs(Array.from(node.childNodes), style));
     this.currentEntity = null;
   }
   /**
@@ -690,6 +724,7 @@ class ContentBlocksBuilder {
   _extractTextFromBlockConfigs(blockConfigs: Array<ContentBlockConfig>): {
     text: string,
     characterList: List<CharacterMetadata>,
+    ...
   } {
     const l = blockConfigs.length - 1;
     let text = '';
@@ -699,11 +734,8 @@ class ContentBlocksBuilder {
       const config = blockConfigs[i];
       text += config.text;
       characterList = characterList.concat(config.characterList);
-      /* $FlowFixMe(>=0.68.0 site=www,mobile) This comment suppresses an error
-       * found when Flow v0.68 was deployed. To see the error delete this
-       * comment and run Flow. */
 
-      if (text !== '' && config.blockType !== 'unstyled') {
+      if (text !== '' && config.type !== 'unstyled') {
         text += '\n';
         characterList = characterList.push(characterList.last());
       }
@@ -730,6 +762,7 @@ class ContentBlocksBuilder {
 const convertFromHTMLToContentBlocks = (html: string, DOMBuilder: Function = getSafeBodyFromHTML, blockRenderMap?: DraftBlockRenderMap = DefaultDraftBlockRenderMap): ?{
   contentBlocks: ?Array<BlockNodeRecord>,
   entityMap: EntityMap,
+  ...
 } => {
   // Be ABSOLUTELY SURE that the dom builder you pass here won't execute
   // arbitrary code in whatever environment you're running this in. For an

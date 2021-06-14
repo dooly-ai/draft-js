@@ -5,13 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+draft_js
- * @flow
+ * @flow strict-local
  * @format
  */
 
 'use strict';
-
-jest.disableAutomock();
 
 const ContentBlock = require('ContentBlock');
 const ContentState = require('ContentState');
@@ -44,24 +42,27 @@ function withGlobalGetSelectionAs(getSelectionValue = {}, callback) {
 }
 
 test('restoreEditorDOM and keyCommandPlainBackspace are NOT called when the `inputType` is not from a backspace press', () => {
-  const inputEvent = {
-    nativeEvent: {inputType: 'insetText'},
-  };
   const anchorNodeText = 'react draftjs';
   const globalSelection = {
     anchorNode: document.createTextNode(anchorNodeText),
   };
   withGlobalGetSelectionAs(globalSelection, () => {
     const editorState = getEditorState(anchorNodeText);
-
+    const editorNode = document.createElement('div');
     const editor = {
       _latestEditorState: editorState,
       props: {},
       update: jest.fn(),
       restoreEditorDOM: jest.fn(),
+      editor: editorNode,
     };
 
-    // $FlowExpectedError
+    const inputEvent = {
+      nativeEvent: {inputType: 'insetText'},
+      currentTarget: editorNode,
+    };
+
+    // $FlowExpectedError[incompatible-call]
     onInput(editor, inputEvent);
 
     expect(require('keyCommandPlainBackspace')).toHaveBeenCalledTimes(0);
@@ -71,29 +72,32 @@ test('restoreEditorDOM and keyCommandPlainBackspace are NOT called when the `inp
 });
 
 test('restoreEditorDOM and keyCommandPlainBackspace are called when backspace is pressed', () => {
-  const inputEvent = {
-    // When Backspace is pressed and input-type is supported, an event with
-    // inputType === 'deleteContentBackward' is triggered by the browser.
-    nativeEvent: {inputType: 'deleteContentBackward'},
-  };
   const anchorNodeText = 'react draftjs';
   const globalSelection = {
     anchorNode: document.createTextNode(anchorNodeText),
   };
   withGlobalGetSelectionAs(globalSelection, () => {
     const editorState = getEditorState(anchorNodeText);
-
+    const editorNode = document.createElement('div');
     const editor = {
       _latestEditorState: editorState,
       props: {},
       update: jest.fn(),
       restoreEditorDOM: jest.fn(),
+      editor: editorNode,
     };
 
-    // $FlowExpectedError
+    const inputEvent = {
+      // When Backspace is pressed and input-type is supported, an event with
+      // inputType === 'deleteContentBackward' is triggered by the browser.
+      nativeEvent: {inputType: 'deleteContentBackward'},
+      currentTarget: editorNode,
+    };
+
+    // $FlowExpectedError[incompatible-call]
     onInput(editor, inputEvent);
 
-    // $FlowExpectedError
+    // $FlowExpectedError[prop-missing]
     const newEditorState = require('keyCommandPlainBackspace').mock.results[0]
       .value;
     expect(require('keyCommandPlainBackspace')).toHaveBeenCalledWith(

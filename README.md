@@ -1,17 +1,9 @@
-# [Draft.js](http://draftjs.org/) [![Build Status](https://img.shields.io/travis/facebook/draft-js/master.svg?style=flat)](https://travis-ci.org/facebook/draft-js) [![npm version](https://img.shields.io/npm/v/draft-js.svg?style=flat)](https://yarn.pm/draft-js)
-
 ## Dooly Maintained Fork
 
 This is a fork of Draft.js maintained by Dooly. We don't recommend using this
 fork, it's a hacked up version suited to our needs and most likely not yours.
 
 This fork has the following changes:
-
-- **Scrolling improvements when inserting blocks:** Draft.js scrolls its
-container when a block is inserted at the end of the editor that falls outside
-of the visible viewport. This improves the scrolling behaviour for when the
-editor is inside of a scrollable container. An optional element with the
-`[data-draft-footer]` selector is kept in view when the container is scrolled.
 
 - **Maintain original block type when updating a single fragment:** When
 updating a single fragment (e.g, pasting a single element,) the original block
@@ -32,14 +24,34 @@ Hi there,
 
 ## Original README
 
-![Live Demo](https://media.giphy.com/media/XHUjaxELpc11SiRSqN/giphy.gif)
+<p align="center">
+  <a href="http://draftjs.org/">
+    <img src="https://draftjs.org/img/draftjs-logo.svg" alt="draftjs-logo" width="8%" />
+  </a>
+</p>
+<h1 align="center">
+  Draft.js
+</h1>
+<p align="center">
+  <a href="https://travis-ci.org/facebook/draft-js">
+    <img src="https://img.shields.io/travis/facebook/draft-js/master.svg?style=flat" alt="Build Status" />
+  </a>
+  <a href="https://yarn.pm/draft-js">
+    <img src="https://img.shields.io/npm/v/draft-js.svg?style=flat" alt="npm version" />
+  </a>
+</p>
+<p align="center">
+  <img src="https://media.giphy.com/media/XHUjaxELpc11SiRSqN/giphy.gif" alt="Live Demo" />
+</p>
+
+--------------------
 
 Draft.js is a JavaScript rich text editor framework, built for React and
 backed by an immutable model.
 
 - **Extensible and Customizable:** We provide the building blocks to enable
 the creation of a broad variety of rich text composition experiences, from
-simple text styles to embedded media.
+basic text styles to embedded media.
 - **Declarative Rich Text:** Draft.js fits seamlessly into
 [React](http://facebook.github.io/react/) applications,
 abstracting away the details of rendering, selection, and input behavior with a
@@ -49,7 +61,7 @@ with [immutable-js](https://facebook.github.io/immutable-js/), offering
 an API with functional state updates and aggressively leveraging data persistence
 for scalable memory usage.
 
-[Learn how to use Draft.js in your own project.](https://draftjs.org/docs/getting-started.html)
+[Learn how to use Draft.js in your own project.](https://draftjs.org/docs/getting-started/)
 
 ## API Notice
 
@@ -61,8 +73,6 @@ If you are interested in helping out, or tracking the progress, please follow
 
 ## Getting Started
 
-Currently Draft.js is distributed via npm. It depends on React and React DOM which must also be installed.
-
 ```
 npm install --save draft-js react react-dom
 
@@ -70,6 +80,8 @@ or
 
 yarn add draft-js react react-dom
 ```
+
+Draft.js depends on React and React DOM which must also be installed.
 
 ### Using Draft.js
 
@@ -170,18 +182,20 @@ Further examples of how Draft.js can be used are provided below.
 
 ### Examples
 
-Visit http://draftjs.org/ to try out a simple rich editor example.
+Visit http://draftjs.org/ to try out a basic rich editor example.
 
 The repository includes a variety of different editor examples to demonstrate
 some of the features offered by the framework.
 
-To run the examples, first build Draft.js locally:
+To run the examples, first build Draft.js locally. The Draft.js build is tested
+with Yarn v1 only. If you're using any other package manager and something doesn't
+work, try using yarn v1:
 
 ```
 git clone https://github.com/facebook/draft-js.git
 cd draft-js
-npm install
-npm run build
+yarn install
+yarn run build
 ```
 
 then open the example HTML files in your browser.
@@ -192,15 +206,15 @@ comment inputs, [Notes](https://www.facebook.com/notes/), and
 
 ## Browser Support
 
-| ![IE / Edge](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/edge.png) <br /> IE / Edge | ![Firefox](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/firefox.png) <br /> Firefox | ![Chrome](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome.png) <br /> Chrome | ![Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari.png ) <br /> Safari | ![iOS Safari](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/safari-ios.png) <br />iOS Safari | ![Chrome for Android](https://raw.githubusercontent.com/godban/browsers-support-badges/master/src/images/chrome-android.png) <br/> Chrome for Android |
+| ![IE / Edge](https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_32x32.png) <br /> IE / Edge | ![Firefox](https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_32x32.png) <br /> Firefox | ![Chrome](https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_32x32.png) <br /> Chrome | ![Safari](https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_32x32.png) <br /> Safari | ![iOS Safari](https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari-ios/safari-ios_32x32.png) <br />iOS Safari | ![Chrome for Android](https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_32x32.png) <br/> Chrome for Android |
 | --------- | --------- | --------- | --------- | --------- | --------- |
 | IE11, Edge [1, 2]| last 2 versions| last 2 versions| last 2 versions| not fully supported [3] | not fully supported [3]
 
-[1] May need a shim or a polyfill for some syntax used in Draft.js ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#polyfills)).
+[1] May need a shim or a polyfill for some syntax used in Draft.js ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls/#polyfills)).
 
-[2] IME inputs have known issues in these browsers, especially Korean ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#ime-and-internet-explorer)).
+[2] IME inputs have known issues in these browsers, especially Korean ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls/#ime-and-internet-explorer)).
 
-[3] There are known issues with mobile browsers, especially on Android ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls.html#mobile-not-yet-supported)).
+[3] There are known issues with mobile browsers, especially on Android ([docs](https://draftjs.org/docs/advanced-topics-issues-and-pitfalls/#mobile-not-yet-supported)).
 
 ## Resources and Ecosystem
 

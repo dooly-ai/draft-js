@@ -37,4 +37,5 @@ export type DraftDecoratorType = {
    * this decorated range.
    */
   getPropsForKey(key: string): ?Object,
+  ...
 };

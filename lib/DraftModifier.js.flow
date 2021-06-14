@@ -17,6 +17,7 @@ import type { DraftInlineStyle } from "./DraftInlineStyle";
 import type { DraftRemovalDirection } from "./DraftRemovalDirection";
 import type SelectionState from "./SelectionState";
 import type { Map } from "immutable";
+import type { BlockDataMergeBehavior } from "./insertFragmentIntoContentState";
 
 const CharacterMetadata = require("./CharacterMetadata");
 
@@ -27,8 +28,6 @@ const applyEntityToContentState = require("./applyEntityToContentState");
 const getCharacterRemovalRange = require("./getCharacterRemovalRange");
 
 const getContentStateFragment = require("./getContentStateFragment");
-
-const gkx = require("./gkx");
 
 const Immutable = require("immutable");
 
@@ -79,10 +78,10 @@ const DraftModifier = {
     const afterRemoval = DraftModifier.removeRange(contentState, removalRange, 'backward');
     return DraftModifier.replaceWithFragment(afterRemoval, targetRange, movedFragment);
   },
-  replaceWithFragment: function (contentState: ContentState, targetRange: SelectionState, fragment: BlockMap): ContentState {
+  replaceWithFragment: function (contentState: ContentState, targetRange: SelectionState, fragment: BlockMap, mergeBlockData?: BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA'): ContentState {
     const withoutEntities = removeEntitiesAtEdges(contentState, targetRange);
     const withoutText = removeRangeFromContentState(withoutEntities, targetRange);
-    return insertFragmentIntoContentState(withoutText, withoutText.getSelectionAfter(), fragment);
+    return insertFragmentIntoContentState(withoutText, withoutText.getSelectionAfter(), fragment, mergeBlockData);
   },
   removeRange: function (contentState: ContentState, rangeToRemove: SelectionState, removalDirection: DraftRemovalDirection): ContentState {
     let startKey, endKey, startBlock, endBlock;
@@ -114,16 +113,8 @@ const DraftModifier = {
       }
     }
 
-    let adjustedRemovalRange = rangeToRemove;
-
-    if (gkx('draft_segmented_entities_behavior')) {
-      // Adjust the selection to properly delete segemented and immutable
-      // entities
-      adjustedRemovalRange = getCharacterRemovalRange(contentState.getEntityMap(), startBlock, endBlock, rangeToRemove, removalDirection);
-    }
-
-    const withoutEntities = removeEntitiesAtEdges(contentState, adjustedRemovalRange);
-    return removeRangeFromContentState(withoutEntities, adjustedRemovalRange);
+    const withoutEntities = removeEntitiesAtEdges(contentState, rangeToRemove);
+    return removeRangeFromContentState(withoutEntities, rangeToRemove);
   },
   splitBlock: function (contentState: ContentState, selectionState: SelectionState): ContentState {
     const withoutEntities = removeEntitiesAtEdges(contentState, selectionState);

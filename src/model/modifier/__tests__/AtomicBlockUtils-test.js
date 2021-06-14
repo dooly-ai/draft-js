@@ -11,10 +11,10 @@
 
 'use strict';
 
-jest.disableAutomock();
-
 jest.mock('generateRandomKey');
 
+const mockUUID = require('mockUUID');
+jest.mock('uuid', () => mockUUID);
 const AtomicBlockUtils = require('AtomicBlockUtils');
 const BlockMapBuilder = require('BlockMapBuilder');
 const ContentBlockNode = require('ContentBlockNode');
@@ -33,9 +33,8 @@ const CHARACTER = ' ';
 
 const getInvariantViolation = msg => {
   try {
-    /* eslint-disable fb-www/sprintf-like-args */
+    /* eslint-disable-next-line */
     invariant(false, msg);
-    /* eslint-enable fb-www/sprintf-like-args */
   } catch (e) {
     return e;
   }
@@ -87,6 +86,7 @@ const assertMoveAtomicBlock = (
 
 beforeEach(() => {
   jest.resetModules();
+  jest.mock('uuid', () => mockUUID);
 });
 
 test('must insert atomic at start of block with collapsed seletion', () => {

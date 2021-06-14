@@ -23,22 +23,22 @@ const DraftEditorCompositionHandler = require('DraftEditorCompositionHandler');
 const DraftEditorContents = require('DraftEditorContents.react');
 const DraftEditorDragHandler = require('DraftEditorDragHandler');
 const DraftEditorEditHandler = require('DraftEditorEditHandler');
+const flushControlled = require('DraftEditorFlushControlled');
 const DraftEditorPlaceholder = require('DraftEditorPlaceholder.react');
 const DraftEffects = require('DraftEffects');
 const EditorState = require('EditorState');
 const React = require('React');
-const ReactDOM = require('ReactDOM');
 const Scroll = require('Scroll');
 const Style = require('Style');
 const UserAgent = require('UserAgent');
 
 const cx = require('cx');
-const emptyFunction = require('emptyFunction');
 const generateRandomKey = require('generateRandomKey');
 const getDefaultKeyBinding = require('getDefaultKeyBinding');
 const getScrollPosition = require('getScrollPosition');
 const gkx = require('gkx');
 const invariant = require('invariant');
+const isHTMLElement = require('isHTMLElement');
 const nullthrows = require('nullthrows');
 
 const isIE = UserAgent.isBrowser('IE');
@@ -57,15 +57,14 @@ const handlerMap = {
   render: null,
 };
 
-type State = {
-  contentsKey: number,
-};
+type State = {contentsKey: number, ...};
 
 let didInitODS = false;
 
 class UpdateDraftEditorFlags extends React.Component<{
   editor: DraftEditor,
   editorState: EditorState,
+  ...
 }> {
   render(): React.Node {
     return null;
@@ -135,9 +134,14 @@ class UpdateDraftEditorFlags extends React.Component<{
  */
 class DraftEditor extends React.Component<DraftEditorProps, State> {
   static defaultProps: DraftEditorDefaultProps = {
+    ariaDescribedBy: '{{editor_id_placeholder}}',
     blockRenderMap: DefaultDraftBlockRenderMap,
-    blockRendererFn: emptyFunction.thatReturnsNull,
-    blockStyleFn: emptyFunction.thatReturns(''),
+    blockRendererFn: function() {
+      return null;
+    },
+    blockStyleFn: function() {
+      return '';
+    },
     keyBindingFn: getDefaultKeyBinding,
     readOnly: false,
     spellCheck: false,
@@ -243,7 +247,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
             `Supplying an \`${propName}\` prop to \`DraftEditor\` has ` +
               'been deprecated. If your handler needs access to the keyboard ' +
               'event, supply a custom `keyBindingFn` prop that falls back to ' +
-              'the default one (eg. https://is.gd/RG31RJ).',
+              'the default one (eg. https://is.gd/wHKQ3W).',
           );
         }
       });
@@ -259,11 +263,6 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
    * editor mode, if any has been specified.
    */
   _buildHandler(eventName: string): Function {
-    const flushControlled: (fn: Function) => void =
-      /* $FlowFixMe(>=0.79.1 site=www) This comment suppresses an error found
-       * when Flow v0.79 was deployed. To see the error delete this comment and
-       * run Flow. */
-      ReactDOM.unstable_flushControlled;
     // Wrap event handlers in `flushControlled`. In sync mode, this is
     // effectively a no-op. In async mode, this ensures all updates scheduled
     // inside the handler are flushed before React yields to the browser.
@@ -280,6 +279,16 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       }
     };
   }
+
+  _handleEditorContainerRef: (HTMLElement | null) => void = (
+    node: HTMLElement | null,
+  ): void => {
+    this.editorContainer = node;
+    // Instead of having a direct ref on the child, we'll grab it here.
+    // This is safe as long as the rendered structure is static (which it is).
+    // This lets the child support ref={props.editorRef} without merging refs.
+    this.editor = node !== null ? (node: any).firstChild : null;
+  };
 
   _showPlaceholder(): boolean {
     return (
@@ -298,9 +307,28 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
         accessibilityID: this._placeholderAccessibilityID,
       };
 
+      /* $FlowFixMe[incompatible-type] (>=0.112.0 site=www,mobile) This comment
+       * suppresses an error found when Flow v0.112 was deployed. To see the
+       * error delete this comment and run Flow. */
       return <DraftEditorPlaceholder {...placeHolderProps} />;
     }
     return null;
+  }
+
+  /**
+   * returns ariaDescribedBy prop with '{{editor_id_placeholder}}' replaced with
+   * the DOM id of the placeholder (if it exists)
+   * @returns aria-describedby attribute value
+   */
+  _renderARIADescribedBy(): ?string {
+    const describedBy = this.props.ariaDescribedBy || '';
+    const placeholderID = this._showPlaceholder()
+      ? this._placeholderAccessibilityID
+      : '';
+    return (
+      describedBy.replace('{{editor_id_placeholder}}', placeholderID) ||
+      undefined
+    );
   }
 
   render(): React.Node {
@@ -311,6 +339,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       customStyleFn,
       customStyleMap,
       editorState,
+      preventScroll,
       readOnly,
       textAlignment,
       textDirectionality,
@@ -334,9 +363,9 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
 
     // The aria-expanded and aria-haspopup properties should only be rendered
     // for a combobox.
-    /* $FlowFixMe(>=0.68.0 site=www,mobile) This comment suppresses an error
-     * found when Flow v0.68 was deployed. To see the error delete this comment
-     * and run Flow. */
+    /* $FlowFixMe[prop-missing] (>=0.68.0 site=www,mobile) This comment
+     * suppresses an error found when Flow v0.68 was deployed. To see the error
+     * delete this comment and run Flow. */
     const ariaRole = this.props.role || 'textbox';
     const ariaExpanded =
       ariaRole === 'combobox' ? !!this.props.ariaExpanded : null;
@@ -352,7 +381,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       customStyleFn,
       editorKey: this._editorKey,
       editorState,
-      key: 'contents' + this.state.contentsKey,
+      preventScroll,
       textDirectionality,
     };
 
@@ -361,16 +390,15 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
         {this._renderPlaceholder()}
         <div
           className={cx('DraftEditor/editorContainer')}
-          ref={ref => (this.editorContainer = ref)}>
+          ref={this._handleEditorContainerRef}>
+          {/* Note: _handleEditorContainerRef assumes this div won't move: */}
           <div
             aria-activedescendant={
               readOnly ? null : this.props.ariaActiveDescendantID
             }
             aria-autocomplete={readOnly ? null : this.props.ariaAutoComplete}
             aria-controls={readOnly ? null : this.props.ariaControls}
-            aria-describedby={
-              this.props.ariaDescribedBy || this._placeholderAccessibilityID
-            }
+            aria-describedby={this._renderARIADescribedBy()}
             aria-expanded={readOnly ? null : ariaExpanded}
             aria-label={this.props.ariaLabel}
             aria-labelledby={this.props.ariaLabelledBy}
@@ -409,7 +437,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
             onMouseUp={this._onMouseUp}
             onPaste={this._onPaste}
             onSelect={this._onSelect}
-            ref={ref => (this.editor = ref)}
+            ref={this.props.editorRef}
             role={readOnly ? null : ariaRole}
             spellCheck={allowSpellCheck && this.props.spellCheck}
             style={contentStyle}
@@ -420,7 +448,10 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
               all DraftEditorLeaf nodes so it's first in postorder traversal.
             */}
             <UpdateDraftEditorFlags editor={this} editorState={editorState} />
-            <DraftEditorContents {...editorContentsProps} />
+            <DraftEditorContents
+              {...editorContentsProps}
+              key={'contents' + this.state.contentsKey}
+            />
           </div>
         </div>
       </div>
@@ -443,7 +474,13 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
      * ie9-beta-minor-change-list.aspx
      */
     if (isIE) {
-      document.execCommand('AutoUrlDetect', false, false);
+      // editor can be null after mounting
+      // https://stackoverflow.com/questions/44074747/componentdidmount-called-before-ref-callback
+      if (!this.editor) {
+        global.execCommand('AutoUrlDetect', false, false);
+      } else {
+        this.editor.ownerDocument.execCommand('AutoUrlDetect', false, false);
+      }
     }
   }
 
@@ -478,10 +515,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
     const scrollParent = Style.getScrollParent(editorNode);
     const {x, y} = scrollPosition || getScrollPosition(scrollParent);
 
-    invariant(
-      editorNode instanceof HTMLElement,
-      'editorNode is not an HTMLElement',
-    );
+    invariant(isHTMLElement(editorNode), 'editorNode is not an HTMLElement');
 
     editorNode.focus();
 
@@ -505,10 +539,10 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
 
   blur: () => void = (): void => {
     const editorNode = this.editor;
-    invariant(
-      editorNode instanceof HTMLElement,
-      'editorNode is not an HTMLElement',
-    );
+    if (!editorNode) {
+      return;
+    }
+    invariant(isHTMLElement(editorNode), 'editorNode is not an HTMLElement');
     editorNode.blur();
   };
 
@@ -524,6 +558,9 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
     const editHandler = {...handlerMap.edit};
 
     if (onPaste) {
+      /* $FlowFixMe[incompatible-type] (>=0.117.0 site=www,mobile) This comment
+       * suppresses an error found when Flow v0.117 was deployed. To see the
+       * error delete this comment and run Flow. */
       editHandler.onPaste = onPaste;
     }
 

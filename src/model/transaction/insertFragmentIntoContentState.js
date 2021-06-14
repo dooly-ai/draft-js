@@ -26,6 +26,10 @@ const randomizeBlockMapKeys = require('randomizeBlockMapKeys');
 
 const {List} = Immutable;
 
+export type BlockDataMergeBehavior =
+  | 'REPLACE_WITH_NEW_DATA'
+  | 'MERGE_OLD_DATA_TO_NEW_DATA';
+
 const updateExistingBlock = (
   contentState: ContentState,
   selectionState: SelectionState,
@@ -33,12 +37,29 @@ const updateExistingBlock = (
   fragmentBlock: BlockNodeRecord,
   targetKey: string,
   targetOffset: number,
+  mergeBlockData?: BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA',
 ): ContentState => {
   const targetBlock = blockMap.get(targetKey);
   const text = targetBlock.getText();
   const chars = targetBlock.getCharacterList();
   const finalKey = targetKey;
   const finalOffset = targetOffset + fragmentBlock.getText().length;
+
+  let data = null;
+
+  switch (mergeBlockData) {
+    case 'MERGE_OLD_DATA_TO_NEW_DATA':
+      data = fragmentBlock.getData().merge(targetBlock.getData());
+      break;
+    case 'REPLACE_WITH_NEW_DATA':
+      data = fragmentBlock.getData();
+      break;
+  }
+
+  let type = targetBlock.getType();
+  if (text && type === 'unstyled') {
+    type = fragmentBlock.getType();
+  }
 
   const newBlock = targetBlock.merge({
     text:
@@ -50,7 +71,8 @@ const updateExistingBlock = (
       fragmentBlock.getCharacterList(),
       targetOffset,
     ),
-    data: fragmentBlock.getData(),
+    type,
+    data,
   });
 
   return contentState.merge({
@@ -290,6 +312,7 @@ const insertFragmentIntoContentState = (
   contentState: ContentState,
   selectionState: SelectionState,
   fragmentBlockMap: BlockMap,
+  mergeBlockData?: BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA',
 ): ContentState => {
   invariant(
     selectionState.isCollapsed(),
@@ -320,6 +343,7 @@ const insertFragmentIntoContentState = (
       fragment.first(),
       targetKey,
       targetOffset,
+      mergeBlockData,
     );
   }
 

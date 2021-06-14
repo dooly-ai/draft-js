@@ -5,22 +5,23 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @format
- * @flow strict-local
+ * @flow
  * @emails oncall+draft_js
  */
 'use strict';
 
 import type DraftEditor from "./DraftEditor.react";
 
-const ReactDOM = require("react-dom");
-
 const invariant = require("fbjs/lib/invariant");
 
+const isHTMLElement = require("./isHTMLElement");
+
 function getContentEditableContainer(editor: DraftEditor): HTMLElement {
-  const editorNode = ReactDOM.findDOMNode(editor.editorContainer);
+  const editorNode = editor.editorContainer;
   invariant(editorNode, 'Missing editorNode');
-  invariant(editorNode.firstChild instanceof HTMLElement, 'editorNode.firstChild is not an HTMLElement');
-  return editorNode.firstChild;
+  invariant(isHTMLElement(editorNode.firstChild), 'editorNode.firstChild is not an HTMLElement');
+  const htmlElement = (editorNode.firstChild: any);
+  return htmlElement;
 }
 
 module.exports = getContentEditableContainer;

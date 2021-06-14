@@ -11,6 +11,7 @@
 
 'use strict';
 
+import type {SelectionObject} from 'DraftDOMTypes';
 import type DraftEditor from 'DraftEditor.react';
 
 const DraftModifier = require('DraftModifier');
@@ -18,8 +19,8 @@ const DraftOffsetKey = require('DraftOffsetKey');
 const EditorState = require('EditorState');
 const UserAgent = require('UserAgent');
 
+const {notEmptyKey} = require('draftKeyUtils');
 const findAncestorOffsetKey = require('findAncestorOffsetKey');
-const gkx = require('gkx');
 const keyCommandPlainBackspace = require('keyCommandPlainBackspace');
 const nullthrows = require('nullthrows');
 
@@ -36,7 +37,18 @@ function onInputType(inputType: string, editorState: EditorState): EditorState {
 }
 
 /**
- * This function is intended to handle spellcheck and autocorrect changes,
+ * This function serves two purposes
+ *
+ * 1. To update the editorState and call onChange method with the new
+ * editorState. This editorState is calculated in editOnBeforeInput but the
+ * onChange method is not called with the new state until this method does it.
+ * It is done to handle a specific case where certain character inputs might
+ * be replaced with something else. E.g. snippets ('rc' might be replaced
+ * with boilerplate code for react component). More information on the
+ * exact problem can be found here -
+ * https://github.com/facebook/draft-js/commit/07892ba479bd4dfc6afd1e0ed179aaf51cd138b1
+ *
+ * 2. intended to handle spellcheck and autocorrect changes,
  * which occur in the DOM natively without any opportunity to observe or
  * interpret the changes before they occur.
  *
@@ -52,24 +64,18 @@ function editOnInput(editor: DraftEditor, e: SyntheticInputEvent<>): void {
     editor.update(editor._pendingStateFromBeforeInput);
     editor._pendingStateFromBeforeInput = undefined;
   }
-
-  const domSelection = global.getSelection();
+  // at this point editor is not null for sure (after input)
+  const castedEditorElement: HTMLElement = (editor.editor: any);
+  const domSelection: SelectionObject = castedEditorElement.ownerDocument.defaultView.getSelection();
 
   const {anchorNode, isCollapsed} = domSelection;
-  const isNotTextNode = anchorNode.nodeType !== Node.TEXT_NODE;
   const isNotTextOrElementNode =
-    anchorNode.nodeType !== Node.TEXT_NODE &&
-    anchorNode.nodeType !== Node.ELEMENT_NODE;
+    anchorNode?.nodeType !== Node.TEXT_NODE &&
+    anchorNode?.nodeType !== Node.ELEMENT_NODE;
 
-  if (gkx('draft_killswitch_allow_nontextnodes')) {
-    if (isNotTextNode) {
-      return;
-    }
-  } else {
-    if (isNotTextOrElementNode) {
-      // TODO: (t16149272) figure out context for this change
-      return;
-    }
+  if (anchorNode == null || isNotTextOrElementNode) {
+    // TODO: (t16149272) figure out context for this change
+    return;
   }
 
   if (
@@ -81,10 +87,14 @@ function editOnInput(editor: DraftEditor, e: SyntheticInputEvent<>): void {
     // https://chromium.googlesource.com/chromium/src/+/a3b600981286b135632371477f902214c55a1724
     // To work around, we'll merge the sibling text nodes back into this one.
     const span = anchorNode.parentNode;
+    if (span == null) {
+      // Handle null-parent case.
+      return;
+    }
     anchorNode.nodeValue = span.textContent;
     for (
       let child = span.firstChild;
-      child !== null;
+      child != null;
       child = child.nextSibling
     ) {
       if (child !== anchorNode) {
@@ -123,8 +133,9 @@ function editOnInput(editor: DraftEditor, e: SyntheticInputEvent<>): void {
     // Newest versions of Android support the dom-inputevent-inputtype
     // and we can use the `inputType` to properly apply the state changes.
 
-    /* $FlowFixMe inputType is only defined on a draft of a standard.
-     * https://w3c.github.io/input-events/#dom-inputevent-inputtype */
+    /* $FlowFixMe[prop-missing] inputType is only defined on a draft of a
+     * standard. https://w3c.github.io/input-events/#dom-inputevent-inputtype
+     */
     const {inputType} = e.nativeEvent;
     if (inputType) {
       const newEditorState = onInputType(inputType, editorState);
@@ -147,8 +158,8 @@ function editOnInput(editor: DraftEditor, e: SyntheticInputEvent<>): void {
   });
 
   const entityKey = block.getEntityAt(start);
-  const entity = entityKey && content.getEntity(entityKey);
-  const entityType = entity && entity.getMutability();
+  const entity = notEmptyKey(entityKey) ? content.getEntity(entityKey) : null;
+  const entityType = entity != null ? entity.getMutability() : null;
   const preserveEntity = entityType === 'MUTABLE';
 
   // Immutable or segmented entities cannot properly be handled by the
