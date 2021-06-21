@@ -29,6 +29,8 @@ const DraftEditorDragHandler = require("./DraftEditorDragHandler");
 
 const DraftEditorEditHandler = require("./DraftEditorEditHandler");
 
+const flushControlled = require("./DraftEditorFlushControlled");
+
 const DraftEditorPlaceholder = require("./DraftEditorPlaceholder.react");
 
 const DraftEffects = require("./DraftEffects");
@@ -37,8 +39,6 @@ const EditorState = require("./EditorState");
 
 const React = require("react");
 
-const ReactDOM = require("react-dom");
-
 const Scroll = require("fbjs/lib/Scroll");
 
 const Style = require("fbjs/lib/Style");
@@ -46,8 +46,6 @@ const Style = require("fbjs/lib/Style");
 const UserAgent = require("fbjs/lib/UserAgent");
 
 const cx = require("fbjs/lib/cx");
-
-const emptyFunction = require("fbjs/lib/emptyFunction");
 
 const generateRandomKey = require("./generateRandomKey");
 
@@ -58,6 +56,8 @@ const getScrollPosition = require("fbjs/lib/getScrollPosition");
 const gkx = require("./gkx");
 
 const invariant = require("fbjs/lib/invariant");
+
+const isHTMLElement = require("./isHTMLElement");
 
 const nullthrows = require("fbjs/lib/nullthrows");
 
@@ -75,13 +75,15 @@ const handlerMap = {
   render: null
 };
 type State = {
-  contentsKey: number
+  contentsKey: number,
+  ...
 };
 let didInitODS = false;
 
 class UpdateDraftEditorFlags extends React.Component<{
   editor: DraftEditor,
   editorState: EditorState,
+  ...
 }> {
   render(): React.Node {
     return null;
@@ -157,9 +159,14 @@ class UpdateDraftEditorFlags extends React.Component<{
 
 class DraftEditor extends React.Component<DraftEditorProps, State> {
   static defaultProps: DraftEditorDefaultProps = {
+    ariaDescribedBy: '{{editor_id_placeholder}}',
     blockRenderMap: DefaultDraftBlockRenderMap,
-    blockRendererFn: emptyFunction.thatReturnsNull,
-    blockStyleFn: emptyFunction.thatReturns(''),
+    blockRendererFn: function () {
+      return null;
+    },
+    blockStyleFn: function () {
+      return '';
+    },
     keyBindingFn: getDefaultKeyBinding,
     readOnly: false,
     spellCheck: false,
@@ -250,7 +257,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       ['onDownArrow', 'onEscape', 'onLeftArrow', 'onRightArrow', 'onTab', 'onUpArrow'].forEach(propName => {
         if (props.hasOwnProperty(propName)) {
           // eslint-disable-next-line no-console
-          console.warn(`Supplying an \`${propName}\` prop to \`DraftEditor\` has ` + 'been deprecated. If your handler needs access to the keyboard ' + 'event, supply a custom `keyBindingFn` prop that falls back to ' + 'the default one (eg. https://is.gd/RG31RJ).');
+          console.warn(`Supplying an \`${propName}\` prop to \`DraftEditor\` has ` + 'been deprecated. If your handler needs access to the keyboard ' + 'event, supply a custom `keyBindingFn` prop that falls back to ' + 'the default one (eg. https://is.gd/wHKQ3W).');
         }
       });
     } // See `restoreEditorDOM()`.
@@ -268,14 +275,9 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
 
 
   _buildHandler(eventName: string): Function {
-    const flushControlled: (fn: Function) => void =
-    /* $FlowFixMe(>=0.79.1 site=www) This comment suppresses an error found
-     * when Flow v0.79 was deployed. To see the error delete this comment and
-     * run Flow. */
-    ReactDOM.unstable_flushControlled; // Wrap event handlers in `flushControlled`. In sync mode, this is
+    // Wrap event handlers in `flushControlled`. In sync mode, this is
     // effectively a no-op. In async mode, this ensures all updates scheduled
     // inside the handler are flushed before React yields to the browser.
-
     return e => {
       if (!this.props.readOnly) {
         const method = this._handler && this._handler[eventName];
@@ -291,6 +293,14 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
     };
   }
 
+  _handleEditorContainerRef: (HTMLElement | null) => void = (node: HTMLElement | null): void => {
+    this.editorContainer = node; // Instead of having a direct ref on the child, we'll grab it here.
+    // This is safe as long as the rendered structure is static (which it is).
+    // This lets the child support ref={props.editorRef} without merging refs.
+
+    this.editor = node !== null ? (node: any).firstChild : null;
+  };
+
   _showPlaceholder(): boolean {
     return !!this.props.placeholder && !this.props.editorState.isInCompositionMode() && !this.props.editorState.getCurrentContent().hasText();
   }
@@ -303,10 +313,26 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
         textAlignment: this.props.textAlignment,
         accessibilityID: this._placeholderAccessibilityID
       };
+      /* $FlowFixMe[incompatible-type] (>=0.112.0 site=www,mobile) This comment
+       * suppresses an error found when Flow v0.112 was deployed. To see the
+       * error delete this comment and run Flow. */
+
       return <DraftEditorPlaceholder {...placeHolderProps} />;
     }
 
     return null;
+  }
+  /**
+   * returns ariaDescribedBy prop with '{{editor_id_placeholder}}' replaced with
+   * the DOM id of the placeholder (if it exists)
+   * @returns aria-describedby attribute value
+   */
+
+
+  _renderARIADescribedBy(): ?string {
+    const describedBy = this.props.ariaDescribedBy || '';
+    const placeholderID = this._showPlaceholder() ? this._placeholderAccessibilityID : '';
+    return describedBy.replace('{{editor_id_placeholder}}', placeholderID) || undefined;
   }
 
   render(): React.Node {
@@ -317,6 +343,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       customStyleFn,
       customStyleMap,
       editorState,
+      preventScroll,
       readOnly,
       textAlignment,
       textDirectionality
@@ -337,9 +364,9 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
     }; // The aria-expanded and aria-haspopup properties should only be rendered
     // for a combobox.
 
-    /* $FlowFixMe(>=0.68.0 site=www,mobile) This comment suppresses an error
-     * found when Flow v0.68 was deployed. To see the error delete this comment
-     * and run Flow. */
+    /* $FlowFixMe[prop-missing] (>=0.68.0 site=www,mobile) This comment
+     * suppresses an error found when Flow v0.68 was deployed. To see the error
+     * delete this comment and run Flow. */
 
     const ariaRole = this.props.role || 'textbox';
     const ariaExpanded = ariaRole === 'combobox' ? !!this.props.ariaExpanded : null;
@@ -353,20 +380,23 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       customStyleFn,
       editorKey: this._editorKey,
       editorState,
-      key: 'contents' + this.state.contentsKey,
+      preventScroll,
       textDirectionality
     };
     return <div className={rootClass}>
         {this._renderPlaceholder()}
-        <div className={cx('DraftEditor/editorContainer')} ref={ref => this.editorContainer = ref}>
-          <div aria-activedescendant={readOnly ? null : this.props.ariaActiveDescendantID} aria-autocomplete={readOnly ? null : this.props.ariaAutoComplete} aria-controls={readOnly ? null : this.props.ariaControls} aria-describedby={this.props.ariaDescribedBy || this._placeholderAccessibilityID} aria-expanded={readOnly ? null : ariaExpanded} aria-label={this.props.ariaLabel} aria-labelledby={this.props.ariaLabelledBy} aria-multiline={this.props.ariaMultiline} aria-owns={readOnly ? null : this.props.ariaOwneeID} autoCapitalize={this.props.autoCapitalize} autoComplete={this.props.autoComplete} autoCorrect={this.props.autoCorrect} className={cx({
+        <div className={cx('DraftEditor/editorContainer')} ref={this._handleEditorContainerRef}>
+          {
+          /* Note: _handleEditorContainerRef assumes this div won't move: */
+        }
+          <div aria-activedescendant={readOnly ? null : this.props.ariaActiveDescendantID} aria-autocomplete={readOnly ? null : this.props.ariaAutoComplete} aria-controls={readOnly ? null : this.props.ariaControls} aria-describedby={this._renderARIADescribedBy()} aria-expanded={readOnly ? null : ariaExpanded} aria-label={this.props.ariaLabel} aria-labelledby={this.props.ariaLabelledBy} aria-multiline={this.props.ariaMultiline} aria-owns={readOnly ? null : this.props.ariaOwneeID} autoCapitalize={this.props.autoCapitalize} autoComplete={this.props.autoComplete} autoCorrect={this.props.autoCorrect} className={cx({
           // Chrome's built-in translation feature mutates the DOM in ways
           // that Draft doesn't expect (ex: adding <font> tags inside
           // DraftEditorLeaf spans) and causes problems. We add notranslate
           // here which makes its autotranslation skip over this subtree.
           notranslate: !readOnly,
           'public/DraftEditor/content': true
-        })} contentEditable={!readOnly} data-testid={this.props.webDriverTestID} onBeforeInput={this._onBeforeInput} onBlur={this._onBlur} onCompositionEnd={this._onCompositionEnd} onCompositionStart={this._onCompositionStart} onCopy={this._onCopy} onCut={this._onCut} onDragEnd={this._onDragEnd} onDragEnter={this.onDragEnter} onDragLeave={this.onDragLeave} onDragOver={this._onDragOver} onDragStart={this._onDragStart} onDrop={this._onDrop} onFocus={this._onFocus} onInput={this._onInput} onKeyDown={this._onKeyDown} onKeyPress={this._onKeyPress} onKeyUp={this._onKeyUp} onMouseUp={this._onMouseUp} onPaste={this._onPaste} onSelect={this._onSelect} ref={ref => this.editor = ref} role={readOnly ? null : ariaRole} spellCheck={allowSpellCheck && this.props.spellCheck} style={contentStyle} suppressContentEditableWarning tabIndex={this.props.tabIndex}>
+        })} contentEditable={!readOnly} data-testid={this.props.webDriverTestID} onBeforeInput={this._onBeforeInput} onBlur={this._onBlur} onCompositionEnd={this._onCompositionEnd} onCompositionStart={this._onCompositionStart} onCopy={this._onCopy} onCut={this._onCut} onDragEnd={this._onDragEnd} onDragEnter={this.onDragEnter} onDragLeave={this.onDragLeave} onDragOver={this._onDragOver} onDragStart={this._onDragStart} onDrop={this._onDrop} onFocus={this._onFocus} onInput={this._onInput} onKeyDown={this._onKeyDown} onKeyPress={this._onKeyPress} onKeyUp={this._onKeyUp} onMouseUp={this._onMouseUp} onPaste={this._onPaste} onSelect={this._onSelect} ref={this.props.editorRef} role={readOnly ? null : ariaRole} spellCheck={allowSpellCheck && this.props.spellCheck} style={contentStyle} suppressContentEditableWarning tabIndex={this.props.tabIndex}>
             {
             /*
              Needs to come earlier in the tree as a sibling (not ancestor) of
@@ -374,7 +404,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
             */
           }
             <UpdateDraftEditorFlags editor={this} editorState={editorState} />
-            <DraftEditorContents {...editorContentsProps} />
+            <DraftEditorContents {...editorContentsProps} key={'contents' + this.state.contentsKey} />
           </div>
         </div>
       </div>;
@@ -398,7 +428,13 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
      */
 
     if (isIE) {
-      document.execCommand('AutoUrlDetect', false, false);
+      // editor can be null after mounting
+      // https://stackoverflow.com/questions/44074747/componentdidmount-called-before-ref-callback
+      if (!this.editor) {
+        global.execCommand('AutoUrlDetect', false, false);
+      } else {
+        this.editor.ownerDocument.execCommand('AutoUrlDetect', false, false);
+      }
     }
   }
 
@@ -436,7 +472,7 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
       x,
       y
     } = scrollPosition || getScrollPosition(scrollParent);
-    invariant(editorNode instanceof HTMLElement, 'editorNode is not an HTMLElement');
+    invariant(isHTMLElement(editorNode), 'editorNode is not an HTMLElement');
     editorNode.focus(); // Restore scroll position
 
     if (scrollParent === window) {
@@ -455,7 +491,12 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
   };
   blur: () => void = (): void => {
     const editorNode = this.editor;
-    invariant(editorNode instanceof HTMLElement, 'editorNode is not an HTMLElement');
+
+    if (!editorNode) {
+      return;
+    }
+
+    invariant(isHTMLElement(editorNode), 'editorNode is not an HTMLElement');
     editorNode.blur();
   };
   /**
@@ -476,6 +517,9 @@ class DraftEditor extends React.Component<DraftEditorProps, State> {
     };
 
     if (onPaste) {
+      /* $FlowFixMe[incompatible-type] (>=0.117.0 site=www,mobile) This comment
+       * suppresses an error found when Flow v0.117 was deployed. To see the
+       * error delete this comment and run Flow. */
       editHandler.onPaste = onPaste;
     }
 

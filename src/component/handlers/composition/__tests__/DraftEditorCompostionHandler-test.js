@@ -5,13 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+draft_js
- * @flow
+ * @flow strict-local
  * @format
  */
 
 'use strict';
-
-jest.disableAutomock();
 
 // DraftEditorComposition uses timers to detect duplicate `compositionend`
 // events.
@@ -67,7 +65,7 @@ function getEditorStateFromHTML(html: string) {
   const state =
     blocksFromHTML != null
       ? ContentState.createFromBlockArray(
-          blocksFromHTML.contentBlocks ?? [],
+          blocksFromHTML.contentBlocks || [],
           blocksFromHTML.entityMap,
         )
       : ContentState.createEmpty();
@@ -105,11 +103,12 @@ beforeEach(() => {
 test('isInCompositionMode is properly updated on composition events', () => {
   // `inCompositionMode` is updated inside editOnCompositionStart,
   // which is why we can't just call compositionHandler.onCompositionStart.
-  // $FlowExpectedError
+  // $FlowExpectedError[incompatible-call]
   editOnCompositionStart(editor, {});
   expect(editor.setMode).toHaveBeenLastCalledWith('composite');
   expect(editor._latestEditorState.isInCompositionMode()).toBe(true);
-  // $FlowExpectedError
+  // $FlowExpectedError[incompatible-use]
+  // $FlowExpectedError[incompatible-call]
   compositionHandler.onCompositionEnd(editor);
   jest.runAllTimers();
   expect(editor._latestEditorState.isInCompositionMode()).toBe(false);
@@ -123,9 +122,11 @@ test('Can handle a single mutation', () => {
     require('DOMObserver').prototype.stopAndFlushMutations.mockReturnValue(
       mutations,
     );
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionStart(editor);
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionEnd(editor);
     jest.runAllTimers();
 
@@ -146,9 +147,11 @@ test('Can handle mutations in multiple blocks', () => {
     require('DOMObserver').prototype.stopAndFlushMutations.mockReturnValue(
       mutations,
     );
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionStart(editor);
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionEnd(editor);
     jest.runAllTimers();
 
@@ -174,9 +177,11 @@ test('Can handle mutations in the same block in multiple leaf nodes', () => {
     require('DOMObserver').prototype.stopAndFlushMutations.mockReturnValue(
       mutations,
     );
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionStart(editor);
-    // $FlowExpectedError
+    // $FlowExpectedError[incompatible-use]
+    // $FlowExpectedError[incompatible-call]
     compositionHandler.onCompositionEnd(editor);
     jest.runAllTimers();
 

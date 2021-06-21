@@ -30,17 +30,37 @@ const randomizeBlockMapKeys = require("./randomizeBlockMapKeys");
 const {
   List
 } = Immutable;
+export type BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA' | 'MERGE_OLD_DATA_TO_NEW_DATA';
 
-const updateExistingBlock = (contentState: ContentState, selectionState: SelectionState, blockMap: BlockMap, fragmentBlock: BlockNodeRecord, targetKey: string, targetOffset: number): ContentState => {
+const updateExistingBlock = (contentState: ContentState, selectionState: SelectionState, blockMap: BlockMap, fragmentBlock: BlockNodeRecord, targetKey: string, targetOffset: number, mergeBlockData?: BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA'): ContentState => {
   const targetBlock = blockMap.get(targetKey);
   const text = targetBlock.getText();
   const chars = targetBlock.getCharacterList();
   const finalKey = targetKey;
   const finalOffset = targetOffset + fragmentBlock.getText().length;
+  let data = null;
+
+  switch (mergeBlockData) {
+    case 'MERGE_OLD_DATA_TO_NEW_DATA':
+      data = fragmentBlock.getData().merge(targetBlock.getData());
+      break;
+
+    case 'REPLACE_WITH_NEW_DATA':
+      data = fragmentBlock.getData();
+      break;
+  }
+
+  let type = targetBlock.getType();
+
+  if (text && type === 'unstyled') {
+    type = fragmentBlock.getType();
+  }
+
   const newBlock = targetBlock.merge({
     text: text.slice(0, targetOffset) + fragmentBlock.getText() + text.slice(targetOffset),
     characterList: insertIntoList(chars, fragmentBlock.getCharacterList(), targetOffset),
-    data: fragmentBlock.getData()
+    type,
+    data
   });
   return contentState.merge({
     blockMap: blockMap.set(targetKey, newBlock),
@@ -213,7 +233,7 @@ const insertFragment = (contentState: ContentState, selectionState: SelectionSta
   });
 };
 
-const insertFragmentIntoContentState = (contentState: ContentState, selectionState: SelectionState, fragmentBlockMap: BlockMap): ContentState => {
+const insertFragmentIntoContentState = (contentState: ContentState, selectionState: SelectionState, fragmentBlockMap: BlockMap, mergeBlockData?: BlockDataMergeBehavior = 'REPLACE_WITH_NEW_DATA'): ContentState => {
   invariant(selectionState.isCollapsed(), '`insertFragment` should only be called with a collapsed selection state.');
   const blockMap = contentState.getBlockMap();
   const fragment = randomizeBlockMapKeys(fragmentBlockMap);
@@ -228,7 +248,7 @@ const insertFragmentIntoContentState = (contentState: ContentState, selectionSta
 
 
   if (fragment.size === 1) {
-    return updateExistingBlock(contentState, selectionState, blockMap, fragment.first(), targetKey, targetOffset);
+    return updateExistingBlock(contentState, selectionState, blockMap, fragment.first(), targetKey, targetOffset, mergeBlockData);
   }
 
   return insertFragment(contentState, selectionState, blockMap, fragment, targetKey, targetOffset);

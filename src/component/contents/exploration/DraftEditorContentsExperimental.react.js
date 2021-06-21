@@ -37,6 +37,7 @@ type Props = {
   editorKey?: string,
   editorState: EditorState,
   textDirectionality?: BidiDirection,
+  ...
 };
 
 /**
@@ -146,6 +147,9 @@ class DraftEditorContentsExperimental extends React.Component<Props> {
         blockRenderMap.get('unstyled');
       const wrapperTemplate = configForType.wrapper;
       processedBlocks.push({
+        /* $FlowFixMe[incompatible-type] (>=0.112.0 site=www,mobile) This
+         * comment suppresses an error found when Flow v0.112 was deployed. To
+         * see the error delete this comment and run Flow. */
         block: <DraftEditorBlockNode key={blockKey} {...blockProps} />,
         wrapperTemplate,
         key: blockKey,

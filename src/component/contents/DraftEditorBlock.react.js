@@ -33,6 +33,7 @@ const getElementPosition = require('getElementPosition');
 const getScrollPosition = require('getScrollPosition');
 const getViewportDimensions = require('getViewportDimensions');
 const invariant = require('invariant');
+const isHTMLElement = require('isHTMLElement');
 const nullthrows = require('nullthrows');
 
 const SCROLL_BUFFER = 10;
@@ -48,9 +49,11 @@ type Props = {
   direction: BidiDirection,
   forceSelection: boolean,
   offsetKey: string,
+  preventScroll?: boolean,
   selection: SelectionState,
   startIndent?: boolean,
   tree: List<any>,
+  ...
 };
 
 /**
@@ -95,6 +98,9 @@ class DraftEditorBlock extends React.Component<Props> {
    * scroll parent.
    */
   componentDidMount(): void {
+    if (this.props.preventScroll) {
+      return;
+    }
     const selection = this.props.selection;
     const endKey = selection.getEndKey();
     if (!selection.getHasFocus() || endKey !== this.props.block.getKey()) {
@@ -121,23 +127,12 @@ class DraftEditorBlock extends React.Component<Props> {
         );
       }
     } else {
-      invariant(
-        blockNode instanceof HTMLElement,
-        'blockNode is not an HTMLElement',
-      );
-      const blockBottom = blockNode.getBoundingClientRect().bottom;
-      const scrollParentBottom = scrollParent.getBoundingClientRect().bottom;
-      scrollDelta = blockBottom - scrollParentBottom;
+      invariant(isHTMLElement(blockNode), 'blockNode is not an HTMLElement');
+      const blockBottom = blockNode.offsetHeight + blockNode.offsetTop;
+      const pOffset = scrollParent.offsetTop + scrollParent.offsetHeight;
+      const scrollBottom = pOffset + scrollPosition.y;
 
-      if (this.props.block === this.props.contentState.getLastBlock()) {
-        // We're on the last block. If there's a footer, account for its height.
-        const scrollPaddingElements = document.querySelectorAll('[data-draft-footer]');
-        if (scrollPaddingElements.length > 0) {
-          const scrollPaddingElement = scrollPaddingElements[0];
-          scrollDelta += scrollPaddingElement.offsetHeight;
-        }
-      }
-      
+      scrollDelta = blockBottom - scrollBottom;
       if (scrollDelta > 0) {
         Scroll.setTop(
           scrollParent,
@@ -157,6 +152,10 @@ class DraftEditorBlock extends React.Component<Props> {
     return this.props.tree
       .map((leafSet, ii) => {
         const leavesForLeafSet = leafSet.get('leaves');
+        // T44088704
+        if (leavesForLeafSet.size === 0) {
+          return null;
+        }
         const lastLeaf = leavesForLeafSet.size - 1;
         const leaves = leavesForLeafSet
           .map((leaf, jj) => {
@@ -215,7 +214,6 @@ class DraftEditorBlock extends React.Component<Props> {
           contentState: this.props.contentState,
           decoratedText,
           dir: dir,
-          key: decoratorOffsetKey,
           start,
           end,
           blockKey,
@@ -224,7 +222,10 @@ class DraftEditorBlock extends React.Component<Props> {
         };
 
         return (
-          <DecoratorComponent {...decoratorProps} {...commonProps}>
+          <DecoratorComponent
+            {...decoratorProps}
+            {...commonProps}
+            key={decoratorOffsetKey}>
             {leaves}
           </DecoratorComponent>
         );
